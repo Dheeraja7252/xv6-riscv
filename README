@@ -1,10 +1,6 @@
-# Assignment 4 - xv6
+# Modified xv6
 
-> Name: Dheeraja Rajreddygari
-Roll number: 2020101120
-> 
-
-# `trace` implementation
+## `trace` implementation
 
 `trace` is a system call used to trace specific system calls made by a program. It takes 2 arguments - pid of the process whose syscalls are to be traced and a bitmask containing the syscall numbers of the syscalls that should be traced.
 
@@ -20,7 +16,7 @@ To enable the syscall, a syscall number was added to `syscall.h`, prototype for 
 
 FInally, create a user program `strace.c` in the user directory that uses the trace syscall to set the mask of the process and then executes the appropriate command (using `exec` ). `$U/_strace` is added to the makefile to compile `strace.c`
 
-# Scheduling
+## Scheduling
 
 xv6 uses a round robin based scheduler by default. The modified version supports the use of 2 other scheduling policies. The desired scheduling algorithm can be set at compile time using the macro `SCHEDULER`.
 
@@ -29,7 +25,7 @@ Using `SCHEDULER=x` while compiling uses the following alternate schedulers:
 - x= `FCFS` : first come first serve
 - x= `PBS` : priority based scheduling
 
-## First come first serve (FCFS)
+### First come first serve (FCFS)
 
 FCFS is a non-preemptive scheduler that selects the process with the earliest creation time. 
 
@@ -37,7 +33,7 @@ It is implemented by adding a variable `ctime` to `struct proc` that saves the t
 
 Additionally, disable timer interrupts in `trap.c` to make it non-preemptive.
 
-## Priority based schedling (PBS)
+### Priority based schedling (PBS)
 
 PBS is a non-preemptive scheduler that assigns priorities to each process and selects the one with the highest priority.
 
@@ -65,11 +61,11 @@ In addition to this, we also implement a syscall `set_priority` that sets the st
 
 usage: `setpriority priority pid`
 
-# procdump
+## procdump
 
 The procdump function is modified to display priority, rtime, wtime and nrun when the scheduling algorithm used is PBS.
 
-# Benchmark
+## Benchmark
 
 The 3 scheduling policies were used to run a series of programs and their average run and wait times are recorded in the below table.
 
