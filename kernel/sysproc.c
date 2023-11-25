@@ -1,6 +1,7 @@
 #include "types.h"
 #include "riscv.h"
 #include "defs.h"
+#include "date.h"
 #include "param.h"
 #include "memlayout.h"
 #include "spinlock.h"
@@ -10,7 +11,8 @@ uint64
 sys_exit(void)
 {
   int n;
-  argint(0, &n);
+  if(argint(0, &n) < 0)
+    return -1;
   exit(n);
   return 0;  // not reached
 }
@@ -31,17 +33,19 @@ uint64
 sys_wait(void)
 {
   uint64 p;
-  argaddr(0, &p);
+  if(argaddr(0, &p) < 0)
+    return -1;
   return wait(p);
 }
 
 uint64
 sys_sbrk(void)
 {
-  uint64 addr;
+  int addr;
   int n;
 
-  argint(0, &n);
+  if(argint(0, &n) < 0)
+    return -1;
   addr = myproc()->sz;
   if(growproc(n) < 0)
     return -1;
@@ -54,11 +58,12 @@ sys_sleep(void)
   int n;
   uint ticks0;
 
-  argint(0, &n);
+  if(argint(0, &n) < 0)
+    return -1;
   acquire(&tickslock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){
-    if(killed(myproc())){
+    if(myproc()->killed){
       release(&tickslock);
       return -1;
     }
@@ -73,7 +78,8 @@ sys_kill(void)
 {
   int pid;
 
-  argint(0, &pid);
+  if(argint(0, &pid) < 0)
+    return -1;
   return kill(pid);
 }
 
@@ -88,4 +94,45 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_trace(void)
+{
+  int mask;
+  if(argint(0, &mask) < 0)
+    return -1;
+  trace(mask);
+  return 0;
+}
+
+uint64
+sys_set_priority(void)
+{
+  int newp, pid;
+  if(argint(0, &newp) < 0 || argint(1, &pid) < 0)
+    return -1;
+  int old_priority = set_priority(newp, pid);
+  // reschedule?
+  return old_priority;
+}
+
+uint64
+sys_waitx(void)
+{
+  uint64 addr, addr1, addr2;
+  uint wtime, rtime;
+  if(argaddr(0, &addr) < 0)
+    return -1;
+  if(argaddr(1, &addr1) < 0) // user virtual memory
+    return -1;
+  if(argaddr(2, &addr2) < 0)
+    return -1;
+  int ret = waitx(addr, &wtime, &rtime);
+  struct proc* p = myproc();
+  if (copyout(p->pagetable, addr1,(char*)&wtime, sizeof(int)) < 0)
+    return -1;
+  if (copyout(p->pagetable, addr2,(char*)&rtime, sizeof(int)) < 0)
+    return -1;
+  return ret;
 }

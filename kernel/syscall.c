@@ -7,12 +7,17 @@
 #include "syscall.h"
 #include "defs.h"
 
+struct syscallinfo {
+    char *name;
+    int numargs;
+};
+
 // Fetch the uint64 at addr from the current process.
 int
 fetchaddr(uint64 addr, uint64 *ip)
 {
   struct proc *p = myproc();
-  if(addr >= p->sz || addr+sizeof(uint64) > p->sz) // both tests needed, in case of overflow
+  if(addr >= p->sz || addr+sizeof(uint64) > p->sz)
     return -1;
   if(copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0)
     return -1;
@@ -25,8 +30,9 @@ int
 fetchstr(uint64 addr, char *buf, int max)
 {
   struct proc *p = myproc();
-  if(copyinstr(p->pagetable, buf, addr, max) < 0)
-    return -1;
+  int err = copyinstr(p->pagetable, buf, addr, max);
+  if(err < 0)
+    return err;
   return strlen(buf);
 }
 
@@ -53,19 +59,21 @@ argraw(int n)
 }
 
 // Fetch the nth 32-bit system call argument.
-void
+int
 argint(int n, int *ip)
 {
   *ip = argraw(n);
+  return 0;
 }
 
 // Retrieve an argument as a pointer.
 // Doesn't check for legality, since
 // copyin/copyout will do that.
-void
+int
 argaddr(int n, uint64 *ip)
 {
   *ip = argraw(n);
+  return 0;
 }
 
 // Fetch the nth word-sized system call argument as a null-terminated string.
@@ -75,35 +83,36 @@ int
 argstr(int n, char *buf, int max)
 {
   uint64 addr;
-  argaddr(n, &addr);
+  if(argaddr(n, &addr) < 0)
+    return -1;
   return fetchstr(addr, buf, max);
 }
 
-// Prototypes for the functions that handle system calls.
-extern uint64 sys_fork(void);
-extern uint64 sys_exit(void);
-extern uint64 sys_wait(void);
-extern uint64 sys_pipe(void);
-extern uint64 sys_read(void);
-extern uint64 sys_kill(void);
-extern uint64 sys_exec(void);
-extern uint64 sys_fstat(void);
 extern uint64 sys_chdir(void);
+extern uint64 sys_close(void);
 extern uint64 sys_dup(void);
+extern uint64 sys_exec(void);
+extern uint64 sys_exit(void);
+extern uint64 sys_fork(void);
+extern uint64 sys_fstat(void);
 extern uint64 sys_getpid(void);
-extern uint64 sys_sbrk(void);
-extern uint64 sys_sleep(void);
-extern uint64 sys_uptime(void);
-extern uint64 sys_open(void);
-extern uint64 sys_write(void);
-extern uint64 sys_mknod(void);
-extern uint64 sys_unlink(void);
+extern uint64 sys_kill(void);
 extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
-extern uint64 sys_close(void);
+extern uint64 sys_mknod(void);
+extern uint64 sys_open(void);
+extern uint64 sys_pipe(void);
+extern uint64 sys_read(void);
+extern uint64 sys_sbrk(void);
+extern uint64 sys_sleep(void);
+extern uint64 sys_unlink(void);
+extern uint64 sys_wait(void);
+extern uint64 sys_write(void);
+extern uint64 sys_uptime(void);
+extern uint64 sys_trace(void);
+extern uint64 sys_set_priority(void);
+extern uint64 sys_waitx(void);
 
-// An array mapping syscall numbers from syscall.h
-// to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
 [SYS_exit]    sys_exit,
@@ -126,6 +135,35 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_trace]   sys_trace,
+[SYS_set_priority] sys_set_priority,
+[SYS_waitx]   sys_waitx
+};
+
+struct syscallinfo sys_call_info[] = {
+[SYS_fork]    {"fork", 0},
+[SYS_exit]    {"exit", 1},
+[SYS_wait]    {"wait", 1},
+[SYS_pipe]    {"pipe", 0},
+[SYS_read]    {"read", 3},
+[SYS_kill]    {"kill", 2},
+[SYS_exec]    {"exec", 2},
+[SYS_fstat]   {"fstat", 1},
+[SYS_chdir]   {"chdir", 1},
+[SYS_dup]     {"dup", 1},
+[SYS_getpid]  {"getpid", 0},
+[SYS_sbrk]    {"sbrk", 1},
+[SYS_sleep]   {"sleep", 1},
+[SYS_uptime]  {"uptime", 0},
+[SYS_open]    {"open", 2},
+[SYS_write]   {"write", 3},
+[SYS_mknod]   {"mknod", 3},
+[SYS_unlink]  {"unlink", 1},
+[SYS_link]    {"link", 2},
+[SYS_mkdir]   {"mkdir", 1},
+[SYS_close]   {"close", 1},
+[SYS_trace]   {"trace", 1},
+[SYS_set_priority] {"set_priority", 2},
 };
 
 void
@@ -133,12 +171,27 @@ syscall(void)
 {
   int num;
   struct proc *p = myproc();
+  int arg0 = argraw(0);
 
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    // Use num to lookup the system call function for num, call it,
-    // and store its return value in p->trapframe->a0
     p->trapframe->a0 = syscalls[num]();
+
+    // trace the last syscall
+    if((1<<num) & p->trace) {
+      printf("%d: syscall %s (", p->pid, sys_call_info[num].name);
+
+      for(int i = 0; i < sys_call_info[num].numargs; i++) {
+        if(i == 0) printf("%d", arg0);
+        else printf("%d", argraw(i));
+
+        if(i+1<sys_call_info[num].numargs)
+          printf(" ");
+      }
+
+      printf(") -> %d\n", p->trapframe->a0);
+    }
+
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);

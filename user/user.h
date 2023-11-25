@@ -1,4 +1,5 @@
 struct stat;
+struct rtcdate;
 
 // system calls
 int fork(void);
@@ -9,7 +10,7 @@ int write(int, const void*, int);
 int read(int, void*, int);
 int close(int);
 int kill(int);
-int exec(const char*, char**);
+int exec(char*, char**);
 int open(const char*, int);
 int mknod(const char*, short, short);
 int unlink(const char*);
@@ -22,6 +23,9 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+void trace(int);
+int set_priority(int, int);
+int waitx(int*, int* /*wtime*/, int* /*rtime*/);
 
 // ulib.c
 int stat(const char*, struct stat*);

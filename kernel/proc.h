@@ -31,6 +31,7 @@ extern struct cpu cpus[NCPU];
 // per-process data for the trap handling code in trampoline.S.
 // sits in a page by itself just under the trampoline page in the
 // user page table. not specially mapped in the kernel page table.
+// the sscratch register points here.
 // uservec in trampoline.S saves user registers in the trapframe,
 // then initializes registers from the trapframe's
 // kernel_sp, kernel_hartid, kernel_satp, and jumps to kernel_trap.
@@ -91,6 +92,14 @@ struct proc {
   int killed;                  // If non-zero, have been killed
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
+  int trace;                   // bitmask of syscalls to be traced
+  int sp;                      // static priority
+  int niceness;                // niceness
+  int nsched;                  // number of times the process has been scheduled to run on cpu
+  uint rtime;                  // How long the process ran for
+  uint etime;                  // When the process exited
+  uint rltime;                 // How long the process ran for last time it was scheduled on run on the cpu
+  uint stime;                  // How long the process was sleeping
 
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process
@@ -104,4 +113,5 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  uint ctime;                  // process creation time
 };
